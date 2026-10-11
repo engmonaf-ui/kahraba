@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>حاسبة فاتورة الكهرباء</title>
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@500;700&family=IBM+Plex+Sans+Arabic:wght@400;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: one narrow column like a meter card; inputs on top, total in a meter-style readout, tier breakdown below */
+:root{
+  --bg:#eef2f4; --card:#ffffff; --fg:#14242c; --muted:#5d6f78; --line:#d5dee2;
+  --accent:#0b6e8a; --accent-soft:#e1f0f4; --readout:#10262e; --readout-fg:#9ff0d9; --err:#b3261e;
+  --display:"Readex Pro","IBM Plex Sans Arabic",system-ui,sans-serif;
+  --body:"IBM Plex Sans Arabic",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0d171b; --card:#15232a; --fg:#e4eef1; --muted:#93a7af; --line:#26383f;
+  --accent:#4fc0dc; --accent-soft:#173843; --readout:#071013; --readout-fg:#9ff0d9; --err:#ff8a80; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0d171b; --card:#15232a; --fg:#e4eef1; --muted:#93a7af; --line:#26383f;
+  --accent:#4fc0dc; --accent-soft:#173843; --readout:#071013; --readout-fg:#9ff0d9; --err:#ff8a80; color-scheme:dark}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--body);font-size:16px;line-height:1.6}
+.wrap{max-width:460px;margin:0 auto;padding:24px 16px 40px;display:grid;gap:18px}
+h1{font-family:var(--display);font-weight:700;font-size:1.5rem;margin:0;text-wrap:balance}
+.sub{color:var(--muted);margin:2px 0 0;font-size:.92rem}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;display:grid;gap:14px}
+label{font-weight:600;font-size:.95rem;display:block;margin-bottom:6px}
+.jswarn{margin:0;padding:10px 12px;border-radius:10px;border:1.5px solid var(--err);color:var(--err);font-weight:600;font-size:.92rem}
+.go{font-family:var(--display);font-weight:700;font-size:1.05rem;padding:13px;border:none;border-radius:10px;background:var(--accent);color:var(--card);cursor:pointer;-webkit-appearance:none;appearance:none}
+.go:active{opacity:.85}
+select{-webkit-appearance:none;appearance:none;width:100%;box-sizing:border-box;font-family:var(--body);font-size:1.05rem;font-weight:600;padding:12px 14px;border:1.5px solid var(--line);border-radius:10px;background:var(--accent-soft);color:var(--fg)}
+select:focus{outline:none;border-color:var(--accent)}
+input{width:100%;box-sizing:border-box;font-family:var(--mono);font-size:1.35rem;padding:12px 14px;border:1.5px solid var(--line);border-radius:10px;background:var(--bg);color:var(--fg);direction:ltr;text-align:left}
+input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.unit{color:var(--muted);font-size:.8rem}
+.readout{background:var(--readout);color:var(--readout-fg);border-radius:14px;padding:18px;display:grid;gap:4px}
+.readout .lbl{font-size:.85rem;opacity:.8;color:#cfe9e1}
+.readout .val{font-family:var(--mono);font-size:2.3rem;direction:ltr;text-align:right;font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.readout .use{font-size:.95rem;color:#cfe9e1}
+.err{color:var(--err);font-weight:600;font-size:.92rem}
+table{width:100%;border-collapse:collapse;font-size:.92rem;font-variant-numeric:tabular-nums}
+th,td{padding:9px 6px;text-align:right;border-bottom:1px solid var(--line)}
+th{color:var(--muted);font-weight:600;font-size:.8rem;letter-spacing:.02em}
+td.n{font-family:var(--mono);direction:ltr;text-align:left}
+tr.on td:first-child{color:var(--accent);font-weight:600}
+tfoot td{font-weight:600;border-bottom:none}
+.top-credit{margin:8px 0 0;font-size:.85rem;color:var(--accent);background:var(--accent-soft);display:inline-block;padding:4px 10px;border-radius:999px}
+.top-credit strong{font-weight:600}
+.credit{display:grid;gap:2px;text-align:center;color:var(--muted);font-size:.85rem;padding-top:14px;border-top:1px solid var(--line)}
+.credit strong{color:var(--fg);font-weight:600}
+.note{color:var(--muted);font-size:.82rem;margin:0}
+</style>
+</head>
+<body>
+
+
+<div class="wrap" dir="rtl" lang="ar">
+  <div>
+    <h1>حاسبة فاتورة الكهرباء</h1>
+    <p class="sub">أدخل القراءتين وتُحسب الكلفة حسب الشرائح</p>  </div>
+
+  <p class="jswarn" id="jswarn">هذا العارض لا يشغّل الحاسبة. افتح الصفحة في متصفح مثل Safari أو Chrome.</p>
+  <p class="jswarn" id="dbg" style="display:none"></p>
+  <div class="card">
+    <div><label for="cat">صنف الاستخدام</label>
+      <select id="cat">
+        <option value="home">منزلي</option>
+        <option value="com">تجاري</option>
+        <option value="gov">حكومي</option>
+        <option value="ind">صناعي</option>
+      </select></div>
+    <div><label for="prev">القراءة السابقة <span class="unit">(كيلوواط/ساعة)</span></label>
+      <input id="prev" type="text" inputmode="decimal" autocomplete="off" value="12500"></div>
+    <div><label for="next">القراءة اللاحقة <span class="unit">(كيلوواط/ساعة)</span></label>
+      <input id="next" type="text" inputmode="decimal" autocomplete="off" value="15800"></div>
+    <button type="button" id="go" class="go">احسب الكلفة</button>
+  </div>
+
+  <div class="readout" aria-live="polite">
+    <span class="lbl">الكلفة الكلية (دينار)</span>
+    <span class="val" id="total">0</span>
+    <span class="use" id="use"></span>
+    <span class="err" id="err" hidden>القراءة اللاحقة أقل من السابقة. تأكد من الأرقام.</span>
+  </div>
+
+  <div class="card">
+    <table>
+      <thead><tr><th>الشريحة</th><th>السعر</th><th>الوحدات</th><th>الكلفة</th></tr></thead>
+      <tbody id="rows"></tbody>
+      <tfoot><tr><td>المجموع</td><td></td><td class="n" id="su">0</td><td class="n" id="sc">0</td></tr></tfoot>
+    </table>
+    <p class="note" id="note"></p>
+  </div>
+
+  <footer class="credit">
+    <span>تم التصميم والبرمجة بواسطة</span>
+    <span><strong>المهندس خلدون خيون فرحان</strong> - دائرة كهرباء ميسان</span>
+    <span><strong>د. مناف عدنان عيدان</strong> - جامعة البصرة للنفط والغاز</span>
+  </footer>
+</div>
+
+<script>
+function showErr(m){try{var d=document.getElementById("dbg");d.textContent="خطأ تقني: "+m;d.style.display="block"}catch(e){}}
+window.onerror=function(m,u,l){showErr(m+" (سطر "+l+")")};
+try{document.getElementById("jswarn").style.display="none"}catch(e){}
+var CATS={
+  home:{tiers:[{n:"1–1500",to:1500,p:10},{n:"1501–3000",to:3000,p:35},{n:"3001–4000",to:4000,p:80},{n:"4001 فأكثر",to:Infinity,p:120}],
+        note:"المنزلي: 1–1500 بـ10، 1501–3000 بـ35، 3001–4000 بـ80، 4001 فأكثر بـ120 دينار للوحدة. كل جزء من الاستهلاك يُحسب بسعر شريحته."},
+  com:{tiers:[{n:"1–1000",to:1000,p:60},{n:"1001–2000",to:2000,p:80},{n:"2001 فأكثر",to:Infinity,p:120}],
+        note:"التجاري: 1–1000 بـ60، 1001–2000 بـ80، 2001 فأكثر بـ120 دينار للوحدة. كل جزء من الاستهلاك يُحسب بسعر شريحته."},
+  gov:{tiers:[{n:"كل الفئات",to:Infinity,p:120}],note:"الحكومي: سعر ثابت 120 دينار للوحدة لكل الفئات."},
+  ind:{tiers:[{n:"كل الفئات",to:Infinity,p:60}],note:"الصناعي: سعر ثابت 60 دينار للوحدة لكل الفئات."}
+};
+var tiers=CATS.home.tiers;
+function el(id){return document.getElementById(id)}
+// Format with thousands separators without relying on toLocaleString
+function f(x){var s=String(Math.round(x));return s.replace(/\B(?=(\d{3})+(?!\d))/g,",")}
+// Accept Arabic-Indic (٠-٩) and Persian (۰-۹) digits from iPhone keyboards, drop separators
+function num(v){
+  v=String(v||"");
+  var out="";
+  for(var i=0;i<v.length;i++){
+    var c=v.charCodeAt(i);
+    if(c>=0x0660&&c<=0x0669)out+=String(c-0x0660);
+    else if(c>=0x06F0&&c<=0x06F9)out+=String(c-0x06F0);
+    else if(c===0x066B)out+=".";
+    else out+=v.charAt(i);
+  }
+  out=out.replace(/[\s,٬،]/g,"").replace(/[^0-9.]/g,"");
+  return out===""?NaN:parseFloat(out);
+}
+function calc(){try{calc0()}catch(e){showErr(String(e&&e.message||e))}}
+function calc0(){
+  var cat=CATS[el("cat").value]||CATS.home; tiers=cat.tiers; el("note").textContent=cat.note;
+  var a=num(el("prev").value), b=num(el("next").value);
+  var both=!isNaN(a)&&!isNaN(b);
+  var ok=both&&b>=a;
+  el("err").hidden=!(both&&b<a);
+  var use=ok?b-a:0, from=0, total=0, html="";
+  for(var i=0;i<tiers.length;i++){
+    var t=tiers[i];
+    var u=Math.max(0,Math.min(use,t.to)-from), c=u*t.p; total+=c;
+    html+='<tr class="'+(u>0?'on':'')+'"><td>'+t.n+'</td><td class="n">'+t.p+'</td><td class="n">'+f(u)+'</td><td class="n">'+f(c)+'</td></tr>';
+    from=t.to;
+  }
+  el("rows").innerHTML=html; el("su").textContent=f(use); el("sc").textContent=f(total);
+  el("total").textContent=f(total); el("use").textContent=ok?("الاستهلاك: "+f(use)+" وحدة"):"";
+  try{localStorage.setItem("bill",JSON.stringify({a:el("prev").value,b:el("next").value,c:el("cat").value}))}catch(e){}
+}
+try{var s=JSON.parse(localStorage.getItem("bill")||"null");if(s){if(s.a!=null)el("prev").value=s.a;if(s.b!=null)el("next").value=s.b;if(s.c&&CATS[s.c])el("cat").value=s.c}}catch(e){}
+var evs=["input","keyup","change","blur"];
+for(var k=0;k<evs.length;k++){el("prev").addEventListener(evs[k],calc);el("next").addEventListener(evs[k],calc)}
+el("cat").addEventListener("change",calc);
+el("go").addEventListener("click",function(){calc();try{document.activeElement.blur()}catch(e){}});
+calc();
+</script>
+
+</body>
+</html>
